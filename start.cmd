@@ -23,7 +23,7 @@ if errorlevel 1 (
 
 :run
 REM echo venv\scripts\python -m xuexi
-venv\scripts\python -m xuexi
+venv2\scripts\python -m xuexi
 pause
 exit
 
