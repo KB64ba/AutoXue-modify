@@ -112,4 +112,4 @@ start_for*.cmd
 *.sqlite
 venv/
 venv2/
-config/default copy.ini
+config/default_new.ini
