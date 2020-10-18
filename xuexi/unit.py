@@ -51,7 +51,7 @@ class Timer:
 
 
 cfg = ConfigParser()
-cfg.read('./config/default.ini', encoding='utf-8')
+cfg.read('./config/default_new.ini', encoding='utf-8')
 
 # cfg.read('./config/custom.ini', encoding='utf-8')
 

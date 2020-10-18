@@ -46,7 +46,7 @@ class Automation:
         logger.info('打开 appium 服务,正在配置...')
         self.driver = webdriver.Remote('http://localhost:4723/wd/hub', self.desired_caps)
         self.wait = WebDriverWait(self.driver, 15)
-        self.wait_zsy = WebDriverWait(self.driver, 15, 0.1)
+        self.wait_zsy = WebDriverWait(self.driver, 15)
         self.size = self.driver.get_window_size()
 
     def connect(self):
@@ -147,7 +147,9 @@ class Automation:
         except Exception as ex:
             logger.info(ex)
         try:
-            if 0 == subprocess.check_call(f'adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///storage/emulated/0/Pictures/二维码.png', shell=True, stdout=subprocess.PIPE):
+            if 0 == subprocess.check_call(
+                    f'adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///storage/emulated/0/Pictures/二维码.png',
+                    shell=True, stdout=subprocess.PIPE):
                 logger.info(f'广播成功')
             else:
                 logger.info(f'广播失败')
@@ -558,8 +560,8 @@ class App(Automation):
             if 0 == num:
                 offset = random.randint(1, length_of_options - 1)  # randint居然包含上限值，坑爹！！！
                 logger.info(f'已完成指定题量，设置提交选项偏移 -{offset}')
-            logger.info(
-                f'随机延时 {delay_time} 秒提交答案: {chr((ord(answer) - 65 - offset + length_of_options) % length_of_options + 65)}')
+            # logger.info(
+            #     f'随机延时 {delay_time} 秒提交答案: {chr((ord(answer) - 65 - offset + length_of_options) % length_of_options + 65)}')
 
             logger.info(f'随机延时 {delay_time} 秒提交答案: {answer}')
             time.sleep(delay_time)
@@ -680,18 +682,18 @@ class App(Automation):
         last_content = ""
         while True:
             try:
-                content = self.wait_zsy.until(EC.presence_of_element_located(
+                content = self.wait.until(EC.presence_of_element_located(
                     (By.XPATH, rules['challenge_content']))).get_attribute("name")
+                option_elements = self.wait.until(EC.presence_of_all_elements_located(
+                    (By.XPATH, rules['challenge_options'])))
                 # logger.info(content)
             except:
                 time.sleep(0.5)
                 try:
-                    # time.sleep(1)
+                    time.sleep(1)
                     self.driver.find_element_by_xpath('//*[@text="正确数/总题数"]')
-                    # zsyend = self.driver.find_element_by_xpath('//*[@text="正确数/总题数"]')
                     logger.info(f'本轮挑战结束')
                     time.sleep(5)
-                    # self.safe_back()
                     break
                 except:
                     continue
@@ -701,13 +703,10 @@ class App(Automation):
                 continue
             content = content.replace("\x20", " ")
             content = content.replace("\xa0", " ")[3:]
-            # content = "".join(content.split())[3:]
-            # content = content[3:]
             logger.info(f'{content}')
-            option_elements = self.wait_zsy.until(EC.presence_of_all_elements_located(
-                (By.XPATH, rules['challenge_options'])))
+            # option_elements = self.wait.until(EC.presence_of_all_elements_located(
+            #     (By.XPATH, rules['challenge_options'])))
             options = [x.get_attribute("name")[3:] for x in option_elements]
-            # logger.info(f'<{num}> {content}')
             answer = self._verify(category='挑战题', content=content, options=options)
             try:
                 option_elements[ord(answer) - 65].click()
@@ -719,7 +718,6 @@ class App(Automation):
                 except:
                     break
 
-            # logger.debug(f'本题回答完毕，抓紧继续下一题')
             last_content = init_content
             num += 1
         # 更新后挑战答题需要增加一次返回
@@ -734,14 +732,98 @@ class App(Automation):
             (By.XPATH, '//*[@text="开始比赛"]')))
         self.safe_click('//*[@text="开始比赛"]')
         time.sleep(5)
+        content = ""
         last_content = ""
+        init_content = ""
         option_click = False
         while True:
             try:
                 content = self.wait_zsy.until(EC.presence_of_element_located(
                     (By.XPATH, rules['challenge_content1']))).get_attribute("name")
-                # logger.info(content)
             except:
+                time.sleep(0.5)
+                try:
+                    self.driver.find_element_by_xpath('//*[@text="正确数/总题数"]')
+                    logger.info(f'本轮挑战结束')
+                    time.sleep(5)
+                    break
+                except:
+                    logger.info(f'获取题目出错，睡了半秒')
+                    continue
+            if content == last_content:  # 如果没有刷到新的题目
+                if not option_click:  # 也没有点选答案，回去继续刷新题目
+                    continue
+                else:  # 如果点选过答案，继续尝试点选，点完继续回去刷
+                    try:
+                        option_elements[ord(answer) - 65].click()
+                        continue
+                    except:
+                        try:
+                            self.driver.find_element_by_xpath('//android.widget.Image/android.widget.Image[3]')
+                            logger.info(f'本轮挑战结束,居然tm输给了别人！！！')
+                            break
+                        except:
+                            logger.info(f'点选答案出错了！！！')
+                            break
+            option_click = False  # 刷新了新的题目，这里更新点选标记为未选
+            init_content = content
+            content = content.replace("\x20", " ")
+            content = content.replace("\xa0", " ")[3:]
+            answer = self.query_local.query_with_content(content)
+            if answer != "":
+                option_elements = self.wait.until(EC.presence_of_all_elements_located(
+                    (By.XPATH, rules['challenge_options'])))
+                try:
+                    option_elements[ord(answer) - 65].click()
+                    option_click = True
+                except:
+                    try:
+                        self.driver.find_element_by_xpath('//android.widget.Image/android.widget.Image[3]')
+                        logger.info(f'本轮挑战结束,居然tm输给了别人！！！')
+                        break
+                    except:
+                        break
+            else:
+                option_elements = self.wait_zsy.until(EC.presence_of_all_elements_located(
+                    (By.XPATH, rules['challenge_options'])))
+                options = [x.get_attribute("name")[3:] for x in option_elements]
+                # logger.info(f'<{num}> {content}')
+                answer = self._verify(category='挑战题', content=content, options=options)
+                try:
+                    option_elements[ord(answer) - 65].click()
+                except:
+                    try:
+                        self.driver.find_element_by_xpath('//android.widget.Image/android.widget.Image[3]')
+                        logger.info(f'本轮挑战结束,居然tm输给了别人！！！')
+                        break
+                    except:
+                        break
+            last_content = init_content
+            num += 1
+        # 更新后挑战答题需要增加一次返回
+        self.safe_back('zhengshangyou -> zsy_start')  # 发现部分模拟器返回无效
+        return num
+
+    def _zhengshangyou_fast1_cycle(self):
+        time.sleep(3)
+        self.safe_click(rules['zhengshangyou_entry'])
+        num = 1
+        self.wait.until(EC.presence_of_element_located(
+            (By.XPATH, '//*[@text="开始比赛"]')))
+        self.safe_click('//*[@text="开始比赛"]')
+        time.sleep(5)
+        content = ""
+        last_content = ""
+        init_content = ""
+        option_click = False
+        while True:
+            try:
+                # logger.info(f"获取题目：-----{time.time()}")
+                content = self.wait_zsy.until(EC.presence_of_element_located(
+                    (By.XPATH, rules['challenge_content1']))).get_attribute("name")
+                # logger.info(f"得到题目：-----{time.time()}")
+            except:
+                # logger.info(f'获取题目出错，睡了半秒')
                 time.sleep(0.5)
                 try:
                     # time.sleep(1)
@@ -752,31 +834,40 @@ class App(Automation):
                     # self.safe_back()
                     break
                 except:
+                    logger.info(f'获取题目出错，睡了半秒')
                     continue
+            if content == last_content:  # 如果没有刷到新的题目
+                if not option_click:  # 也没有点选答案，回去继续刷新题目
+                    continue
+                else:  # 如果点选过答案，继续尝试点选，点完继续回去刷
+                    try:
+                        option_elements[ord(answer) - 65].click()
+                        # logger.info(f'再次点击选项----{time.time()}')
+                        continue
+                    except:
+                        try:
+                            self.driver.find_element_by_xpath('//android.widget.Image/android.widget.Image[3]')
+                            logger.info(f'本轮挑战结束,居然tm输给了别人！！！')
+                            break
+                        except:
+                            logger.info(f'点选答案出错了！！！')
+                            break
+            option_click = False  # 刷新了新的题目，这里更新点选标记为未选
             init_content = content
-            if content == last_content:
-                if not option_click:
-                    continue
-                else:
-                    option_elements[ord(answer) - 65].click()
-                    continue
-            option_click = False
             content = content.replace("\x20", " ")
             content = content.replace("\xa0", " ")[3:]
             # logger.info(content)
+            # logger.info(f'查找答案-------{time.time()}')
             answer = self.query_local.query_with_content(content)
+            # logger.info(f'找完答案-------{time.time()}')
             if answer != "":
-                option_elements = self.wait_zsy.until(EC.presence_of_all_elements_located(
+                # logger.info(f'获取选项{time.time()}')
+                option_elements = self.wait.until(EC.presence_of_all_elements_located(
                     (By.XPATH, rules['challenge_options'])))
-                # options = [x.get_attribute("name")[3:] for x in option_elements]
-                # logger.info(options)
-                # logger.info(f"直接找到答案{answer}")
+                # logger.info(f'得到选项{time.time()}')
                 try:
-                    # logger.info(option_elements[ord(answer) - 65])
-                    # logger.info(option_elements[ord(answer) - 65].is_displayed())
-                    # time.sleep(0.2)
                     option_elements[ord(answer) - 65].click()
-                    logger.info(f'点击选项{answer}')
+                    # logger.info(f'第一次点击选项-------{time.time()}')
                     option_click = True
                 except:
                     try:
@@ -804,8 +895,9 @@ class App(Automation):
             # logger.debug(f'本题回答完毕，抓紧继续下一题')
             last_content = init_content
             num += 1
+            # logger.info(f'结束一次循环-----{time.time()}')
         # 更新后挑战答题需要增加一次返回
-        self.safe_back('share_page -> quiz')  # 发现部分模拟器返回无效
+        self.safe_back('zhengshangyou -> zsy_start')  # 发现部分模拟器返回无效
         return num
 
     def _2_ren_cycle(self):
@@ -913,7 +1005,7 @@ class App(Automation):
                 logger.info(f'本次争上游作对 {result} 题')
                 time.sleep(delay_time)
                 cyclenum -= 1
-                self.safe_back()
+                self.safe_back("zsy_start->quiz")
                 continue
 
     def _shuangrenduizhan(self):
@@ -1394,7 +1486,7 @@ class App(Automation):
                         self._star_share_comments(title)
                         ssc_count -= 1
                     except Exception as ex:
-                        logger.info(f'评论转发出现异常：    %s' % ex)
+                        logger.debug(f'评论转发出现异常{ex}')
                         logger.debug('这是一篇关闭评论的文章，收藏分享留言过程出现错误')
 
                 self.titles.append(title)
@@ -1612,6 +1704,7 @@ class App(Automation):
         logger.info("开始浏览百灵视频...")
         self.safe_click(rules['bailing_enter'])
         self.safe_click(rules['bailing_enter'])  # 再点一次刷新短视频列表
+        time.sleep(2)
         self.safe_click(rules['video_first'])
         logger.info(f'预计观看视频 {video_count} 则')
         while video_count:
@@ -1776,5 +1869,3 @@ class App(Automation):
         self.safe_click('//*[@resource-id="cn.xuexi.android:id/ll_more"]')
         self.safe_click('//*[@text="扫一扫"]')
         self.safe_click('//*[@text="相册"]')
-
-
