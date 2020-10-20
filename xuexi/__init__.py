@@ -696,7 +696,15 @@ class App(Automation):
                     time.sleep(5)
                     break
                 except:
-                    continue
+                    try:
+                        self.driver.find_element_by_xpath('//*[@text="知道了"]').click()
+                        self.safe_click('//*[@text="知道了"]')
+                        time.sleep(2)
+                        logger.info(f"刷分逛！超过30次了，别再刷了")
+                        self.safe_back('zhengshangyou -> zsy_start')  # 发现部分模拟器返回无效
+                        return
+                    except:
+                        break
             init_content = content
             if content == last_content:
                 # logger.info(f'等待题目刷新！')
@@ -721,7 +729,7 @@ class App(Automation):
             last_content = init_content
             num += 1
         # 更新后挑战答题需要增加一次返回
-        self.safe_back('share_page -> quiz')  # 发现部分模拟器返回无效
+        self.safe_back('zhengshangyou -> zsy_start')  # 发现部分模拟器返回无效
         return num
 
     def _zhengshangyou_fast_cycle(self):
@@ -748,8 +756,15 @@ class App(Automation):
                     time.sleep(5)
                     break
                 except:
-                    logger.info(f'获取题目出错，睡了半秒')
-                    continue
+                    try:
+                        self.driver.find_element_by_xpath('//*[@text="知道了"]').click()
+                        self.safe_click('//*[@text="知道了"]')
+                        time.sleep(2)
+                        logger.info(f"刷分逛！超过30次了，别再刷了")
+                        self.safe_back('zhengshangyou -> zsy_start')  # 发现部分模拟器返回无效
+                        return
+                    except:
+                        break
             if content == last_content:  # 如果没有刷到新的题目
                 if not option_click:  # 也没有点选答案，回去继续刷新题目
                     continue
@@ -1449,6 +1464,8 @@ class App(Automation):
             except:
                 logger.debug(f'真是遗憾，一屏都没有可点击的新闻')
                 articles = []
+            if not articles == []:
+                articles.pop[-1]
             for article in articles:
                 try:
                     title = article.get_attribute("name")
